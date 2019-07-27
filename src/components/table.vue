@@ -1,17 +1,31 @@
 <template>
-  <div style="height: 100vh;" @mousedown="handlerClose">
-    <table id="table" @mousedown.left="downAction" @mouseup.left="upAction" @contextmenu="menuShow">
+  <div>
+    <table
+      id="table"
+      @mousedown.left="downAction"
+      @mousedown.right="downActionOnece"
+      @mouseup.left="upAction"
+      @mouseleave="upAction"
+      @contextmenu="menuShow"
+    >
       <tr v-for="(r,index) in tableData" :key="index">
         <td
           v-for="(item,tdIndex) in r"
           :key="tdIndex"
-          contenteditable
           :data-x="item.x"
           :data-y="item.y"
+          :data-value="item.value"
           :class="[item.select ? 'select' : '']"
           @mousemove="moveAction"
-          @input="inputAction"
-        />
+        >
+          <input
+            type="text"
+            :data-x="item.x"
+            :data-y="item.y"
+            :value="item.value"
+            @input="inputAction"
+          >
+        </td>
       </tr>
     </table>
     <Menu
@@ -69,11 +83,13 @@ export default {
     }
   },
   created() {
-    this.tableData = this.makeTableData()
+    this.tableData = this.initTable()
   },
   mounted() {
+    document.addEventListener('click', this.handlerClose)
   },
   destroyed() {
+    document.removeEventListener('click', this.handlerClose)
   },
   methods: {
     deleteRow() {
@@ -82,13 +98,72 @@ export default {
       this.row = this.row - (Math.abs(to - from) + 1)
     },
     deleteColumn() {
-
+      const { from, to } = this.position.y
+      this.column = this.column - (Math.abs(to - from) + 1)
+      this.tableData.forEach((arr, index) => {
+        arr.splice(Math.min(from, to), (Math.abs(to - from) + 1))
+      })
     },
     InsertRow() {
-
+      const { from, to } = this.position.x
+      const max = Math.max(from, to)
+      const tableData = []
+      const column = parseInt(this.column)
+      for (let r = 0; r <= max + 1; r++) {
+        const arr = []
+        for (let col = 0; col < parseInt(column); col++) {
+          const select = this.inRange(r, col)
+          let value = ''
+          if (r === max + 1) {
+            value = ''
+          } else {
+            value = this.tableData[r][col].value
+          }
+          const obj = {
+            value,
+            x: r,
+            y: col,
+            select
+          }
+          arr.push(obj)
+        }
+        tableData[r] = arr
+      }
+      const backArr = this.tableData.slice(max + 1)
+      this.tableData = tableData.concat(backArr)
+      this.row = parseInt(this.row) + 1
     },
-    InsertColumn() {
-
+    InsertColumn(event) {
+      const { row, column } = this
+      const { from, to } = this.position.y
+      const max = Math.max(from, to)
+      const tableData = []
+      for (let r = 0; r < row; r++) {
+        const arr = []
+        for (let col = 0; col < parseInt(column) + 1; col++) {
+          const select = this.inRange(r, col)
+          let value = ''
+          if (col === max + 1) { // 最新插入的列
+            value = ''
+          } else {
+            if (col <= max) { // 插入列所在的前面的列
+              value = this.tableData[r][col].value
+            } else {
+              value = this.tableData[r][col - 1].value
+            }
+          }
+          const obj = {
+            value,
+            x: r,
+            y: col,
+            select
+          }
+          arr.push(obj)
+        }
+        tableData[r] = arr
+      }
+      this.tableData = tableData
+      this.column = parseInt(column) + 1
     },
     mergeTd() {
 
@@ -103,6 +178,10 @@ export default {
      * 取消选中区域的选中
      */
     handlerClose(event) {
+      if (!document.getElementById('menu').contains(event.target)) {
+        this.menuTop = -800
+        this.menuLeft = -800
+      }
       if (document.getElementById('table').contains(event.target) || document.getElementById('menu').contains(event.target)) {
         return ''
       }
@@ -118,6 +197,22 @@ export default {
         this.position.y.to = parseInt(y)
       }
     }, 100),
+
+    /**
+     * 点击右键之后直接修改选中区域
+     */
+    downActionOnece(event) {
+      // 如果选择的区域不是一块
+      if ((this.position.x.from - this.position.x.to !== 0) ||
+          (this.position.y.from - this.position.y.to !== 0)
+      ) {
+        return
+      }
+      this.position.x.from = parseInt(event.target.dataset.x)
+      this.position.y.from = parseInt(event.target.dataset.y)
+      this.position.x.to = parseInt(event.target.dataset.x)
+      this.position.y.to = parseInt(event.target.dataset.y)
+    },
     /**
      * 初始化选中数据
      */
@@ -135,25 +230,53 @@ export default {
      * 输入完成
      */
     inputAction(event) {
-      const { dataset: { x, y }, innerText } = event.target
-      this.tableData[x][y].value = innerText
+      const { dataset: { x, y }, value } = event.target
+      this.tableData[x][y].value = value
     },
-    makeTableData() {
+    /**
+     * 初始化表格
+     */
+    initTable() {
       const { row, column } = this
       const tableData = []
       for (let r = 0; r < parseInt(row); r++) {
         const arr = []
         for (let col = 0; col < parseInt(column); col++) {
+          const obj = {
+            value: `(${r}:${col})`,
+            x: r,
+            y: col,
+            select: false
+          }
+          arr.push(obj)
+        }
+        tableData.push(arr)
+      }
+      return tableData
+    },
+    /**
+     * 选中区域的数组重新生成
+     */
+    makeTableData() {
+      const tableData = [...this.tableData]
+      const row = tableData.length
+      if (row === 0) {
+        return []
+      }
+      const column = tableData[0].length
+      for (let r = 0; r < parseInt(row); r++) {
+        const arr = []
+        for (let col = 0; col < parseInt(column); col++) {
           const select = this.inRange(r, col)
           const obj = {
-            value: '',
+            value: tableData[r][col].value,
             x: r,
             y: col,
             select
           }
           arr.push(obj)
         }
-        tableData.push(arr)
+        tableData[r] = arr
       }
       return tableData
     },
@@ -207,7 +330,24 @@ table th {
   user-select: none;
 }
 table td {
-  padding: 0 30px;
+  padding: 0 5px;
+  width: 100px;
+  box-sizing: border-box;
+}
+table td input{
+  outline: none;
+  border: 0;
+  width: 100%;
+  background: transparent;
+  box-sizing: border-box;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: 100%;
+}
+table td:hover{
+  box-shadow: 0px 0px 10px 1px rgba(164, 232, 227, 0.2);
 }
 table tr:nth-child(odd) {
   background: #fff;
