@@ -16,6 +16,8 @@
           :data-y="item.y"
           :data-value="item.value"
           :class="[item.select ? 'select' : '']"
+          :rowspan="item.rowspan"
+          :colspan="item.colspan"
           @mousemove="moveAction"
         >
           <input
@@ -53,8 +55,8 @@ export default {
   data() {
     return {
       tableData: [], // colspan rowspan value x y // onmousedown onmousemove onmouseup
-      row: '10',
-      column: '10',
+      row: '5',
+      column: '8',
       record: false,
       /**
        * 选中的坐标
@@ -123,7 +125,9 @@ export default {
             value,
             x: r,
             y: col,
-            select
+            select,
+            rowspan: 1, // TODO:
+            colspan: 1 // TODO:
           }
           arr.push(obj)
         }
@@ -156,7 +160,9 @@ export default {
             value,
             x: r,
             y: col,
-            select
+            select,
+            rowspan: 1, // TODO:
+            colspan: 1 // TODO:
           }
           arr.push(obj)
         }
@@ -165,8 +171,132 @@ export default {
       this.tableData = tableData
       this.column = parseInt(column) + 1
     },
-    mergeTd() {
+    mergeTd(event) {
+      const tableData = []
+      let row = this.tableData.length // 原来有多少行
+      /**
+       * 如果一行都没有, 说明表格不存在, 不应该继续执行
+       */
+      if (row === 0) {
+        return
+      }
 
+      const { from: fromY, to: toY } = this.position.y
+      const { from: fromX, to: toX } = this.position.x
+      const minY = Math.min(fromY, toY)
+      const maxX = Math.max(fromX, toX)
+      const minX = Math.min(fromX, toX)
+      const rowspan = Math.abs(fromX - toX) + 1
+      const colspan = Math.abs(fromY - toY) + 1
+      console.log('TCL: mergeTd -> minX', minX)
+      console.log('TCL: mergeTd -> minY', minY)
+      console.log('TCL: mergeTd -> colspan', colspan)
+      console.log('TCL: mergeTd -> rowspan', rowspan)
+
+      // 选中所有的列的时候, 行的循环次数才会跟着变化
+      const isAllCol = colspan === this.tableData[0].length
+      console.log('TCL: mergeTd -> isAllCol', isAllCol)
+      /**
+       * 如果判断已经选中了所有的列,则循环次数要 - rowspan + 1
+       */
+      if (isAllCol) {
+        row = row - rowspan + 1
+      }
+
+      for (let r = 0; r < row; r++) {
+        /**
+         * 计算被合并的单元格的循环次数
+         */
+        let column = this.tableData[r].length
+        if (r === minX) {
+          column = column - colspan + 1
+        }
+        // debugger 有等号 没选中行所有时候是正确的
+        // 没等号, 选中全行时候是对的
+        if (r > minX && r <= maxX) {
+          if (!isAllCol) {
+            column = column - colspan
+          }
+        }
+        // -------------------------------
+
+        const arr = []
+
+        for (let col = 0; col < column; col++) {
+          let rowspanDefault = 1
+          let colspanDefault = 1
+          let value = ''
+          /**
+           * 当前的td是被选中的最左上角那一个
+           */
+          if (r === minX && col === minY) {
+            rowspanDefault = rowspan
+            if (isAllCol) {
+              rowspanDefault = 1
+            }
+            colspanDefault = colspan
+          }
+
+          /**
+           * 当前选中行的上部分的value
+           */
+          if (r < minX) {
+            value = this.tableData[r][col].value
+          }
+          /**
+           * 选择的是一行的情况
+           */
+          if (r > maxX && rowspan === 1) {
+            value = this.tableData[r - rowspan + 1][col].value
+          }
+          /**
+           * 选择的是多行
+           */
+          if (r >= maxX && rowspan !== 1) {
+            /**
+             * 选中的是多行的整行
+             */
+            if (isAllCol) {
+              value = this.tableData[r + rowspan - 1][col].value
+            } else {
+              if (r !== maxX) {
+                value = this.tableData[r][col].value
+              }
+            }
+          }
+
+          /**
+          * 选中的行的区域
+          */
+          if (r >= minX && r <= maxX && !isAllCol) {
+            if (col === minY && r === minX) { // 选中的区域的最左上角
+              value = this.tableData[minX][minY].value // 当前行的value取左上角的值
+            } else { // 不是最左上角的区域
+              if (col === minY) { // 和左上角在一行的区域
+                value = this.tableData[r][col + colspan].value
+              } else {
+                if (r === minX) {
+                  value = this.tableData[r][col + colspan - 1].value
+                } else {
+                  value = this.tableData[r][col + colspan].value
+                }
+              }
+            }
+          }
+
+          const obj = {
+            value,
+            x: r,
+            y: col,
+            select: false,
+            rowspan: rowspanDefault,
+            colspan: colspanDefault
+          }
+          arr.push(obj)
+        }
+        tableData[r] = arr
+      }
+      this.tableData = tableData
     },
     menuShow(event) {
       this.menuTop = event.clientY
@@ -246,7 +376,9 @@ export default {
             value: `(${r}:${col})`,
             x: r,
             y: col,
-            select: false
+            select: false,
+            rowspan: 1,
+            colspan: 1
           }
           arr.push(obj)
         }
@@ -272,7 +404,9 @@ export default {
             value: tableData[r][col].value,
             x: r,
             y: col,
-            select
+            select,
+            rowspan: 1, // TODO:
+            colspan: 1 // TODO:
           }
           arr.push(obj)
         }
