@@ -276,9 +276,17 @@ export default {
                 value = this.tableData[r][col + colspan].value
               } else {
                 if (r === minX) {
-                  value = this.tableData[r][col + colspan - 1].value
+                  if (col > minY) {
+                    value = this.tableData[r][col + colspan - 1].value
+                  } else {
+                    value = this.tableData[r][col].value
+                  }
                 } else {
-                  value = this.tableData[r][col + colspan].value
+                  if (col > minY) {
+                    value = this.tableData[r][col + colspan].value
+                  } else {
+                    value = this.tableData[r][col].value
+                  }
                 }
               }
             }
