@@ -246,8 +246,16 @@ export default {
           /**
            * 选择的是一行的情况
            */
-          if (r > maxX && rowspan === 1) {
-            value = this.tableData[r - rowspan + 1][col].value
+          if (r >= maxX && rowspan === 1) {
+            if (isAllCol) {
+              if (r === maxX) {
+                value = this.tableData[r][col].value
+              } else {
+                value = this.tableData[r - rowspan + 1][col].value
+              }
+            } else {
+              value = this.tableData[r - rowspan + 1][col].value
+            }
           }
           /**
            * 选择的是多行
